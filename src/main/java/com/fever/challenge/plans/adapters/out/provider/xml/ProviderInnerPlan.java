@@ -1,9 +1,13 @@
 package com.fever.challenge.plans.adapters.out.provider.xml;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlElementWrapper;
 import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlProperty;
 import java.util.List;
 
+
+
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class ProviderInnerPlan {
     @JacksonXmlProperty(isAttribute = true, localName = "plan_start_date")
     public String planStartDate;

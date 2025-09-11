@@ -1,7 +1,10 @@
 package com.fever.challenge.plans.adapters.out.provider.xml;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlProperty;
 
+
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class ProviderBasePlan {
     @JacksonXmlProperty(isAttribute = true, localName = "base_plan_id")
     public String basePlanId;
