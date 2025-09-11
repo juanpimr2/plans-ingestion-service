@@ -1,68 +1,92 @@
 package com.fever.challenge.plans.adapters.out.persistence;
 
 import com.fever.challenge.plans.adapters.out.persistence.entity.PlanEntity;
-import com.fever.challenge.plans.adapters.out.persistence.mapper.PlanPersistenceMapper;
 import com.fever.challenge.plans.adapters.out.persistence.repo.JpaPlanRepository;
 import com.fever.challenge.plans.domain.model.Plan;
 import com.fever.challenge.plans.domain.port.PlanRepositoryPort;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
-import java.time.Instant;
-import java.util.*;
+
+import java.time.*;
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
 
 @Component
+@RequiredArgsConstructor
+@Transactional
 public class PlanRepositoryAdapter implements PlanRepositoryPort {
 
     private final JpaPlanRepository jpa;
-    private final PlanPersistenceMapper mapper;
 
-    public PlanRepositoryAdapter(JpaPlanRepository jpa, PlanPersistenceMapper mapper) {
-        this.jpa = jpa; this.mapper = mapper;
-    }
-
-    @Override @Transactional
+    @Override
     public void upsertAll(List<Plan> plans) {
-        for (Plan p : plans) {
-            jpa.findByProviderId(p.getId()).ifPresentOrElse(existing -> {
-                PlanEntity updated = mapper.toEntity(p);
-                updated.setId(existing.getId());
-                // Campos controlados por ingesta
-                updated.setSellMode(existing.getSellMode());
-                updated.setFirstSeenAt(existing.getFirstSeenAt());
-                updated.setCurrentlyAvailable(true);
-                updated.setLastSeenAt(Instant.now());
-                // min/max del dominio ya vienen calculados
-                updated.setMinPrice(p.getMinPrice());
-                updated.setMaxPrice(p.getMaxPrice());
-                jpa.save(updated);
-            }, () -> {
-                PlanEntity e = mapper.toEntity(p);
-                e.setSellMode("online");
-                e.setFirstSeenAt(Instant.now());
-                e.setLastSeenAt(Instant.now());
-                e.setCurrentlyAvailable(true);
-                e.setMinPrice(p.getMinPrice());
-                e.setMaxPrice(p.getMaxPrice());
-                jpa.save(e);
-            });
-        }
+        final Instant now = Instant.now();
+
+        final List<PlanEntity> entities = plans.stream()
+                .map(p -> {
+                    final String providerId = String.valueOf(p.getId());
+
+                    final PlanEntity e = jpa.findByProviderId(providerId).orElseGet(() -> {
+                        PlanEntity ne = new PlanEntity();
+                        ne.setProviderId(providerId);
+                        ne.setFirstSeenAt(now);
+                        return ne;
+                    });
+
+                    e.setTitle(p.getTitle());
+                    e.setSellMode("online");
+                    e.setStartsAt(toInstantUtc(p.getStartDate(), p.getStartTime()));
+                    e.setEndsAt(toInstantUtc(p.getEndDate(), p.getEndTime()));
+                    e.setMinPrice(p.getMinPrice());
+                    e.setMaxPrice(p.getMaxPrice());
+                    e.setLastSeenAt(now);
+                    e.setCurrentlyAvailable(true);
+                    return e;
+                })
+                .toList();
+
+        jpa.saveAll(entities);
     }
 
-    @Override @Transactional
-    public void markMissingAsUnavailable(List<String> seenIds) {
-        Set<String> seen = new HashSet<>(seenIds);
-        for (PlanEntity e : jpa.findAll()) {
-            if (!seen.contains(e.getProviderId()) && e.isCurrentlyAvailable()) {
-                e.setCurrentlyAvailable(false);
-                e.setLastSeenAt(Instant.now());
-                jpa.save(e);
-            }
-        }
+    private static Instant toInstantUtc(LocalDate d, LocalTime t) {
+        return (Objects.isNull(d) || Objects.isNull(t))
+                ? null
+                : ZonedDateTime.of(d, t, ZoneOffset.UTC).toInstant();
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<Plan> findOverlapOnline(Instant start, Instant end) {
+        // solapamiento: starts_at < end  &&  ends_at > start
         return jpa.findBySellModeAndStartsAtBeforeAndEndsAtAfter("online", end, start)
-                .stream().map(mapper::toDomain).toList();
+                .stream()
+                .map(this::toDomain)
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean hasAny() {
+        return jpa.count() > 0;
+    }
+
+    private Plan toDomain(PlanEntity e) {
+        final Optional<LocalDateTime> s = Optional.ofNullable(e.getStartsAt())
+                .map(i -> LocalDateTime.ofInstant(i, ZoneOffset.UTC));
+        final Optional<LocalDateTime> en = Optional.ofNullable(e.getEndsAt())
+                .map(i -> LocalDateTime.ofInstant(i, ZoneOffset.UTC));
+
+        return Plan.builder()
+                .id(e.getProviderId()) // ya es String
+                .title(e.getTitle())
+                .startDate(s.map(LocalDateTime::toLocalDate).orElse(null))
+                .startTime(s.map(LocalDateTime::toLocalTime).orElse(null))
+                .endDate(en.map(LocalDateTime::toLocalDate).orElse(null))
+                .endTime(en.map(LocalDateTime::toLocalTime).orElse(null))
+                .minPrice(e.getMinPrice())
+                .maxPrice(e.getMaxPrice())
+                .build();
     }
 }

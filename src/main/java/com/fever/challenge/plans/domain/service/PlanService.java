@@ -16,6 +16,8 @@ public class PlanService {
 
     /** Consulta planes con solapamiento en la ventana [start, end] y sell_mode=online */
     public List<Plan> findWithin(Instant start, Instant end) {
+        if (start == null || end == null) throw new IllegalArgumentException("start/end required");
+        if (start.isAfter(end)) throw new IllegalArgumentException("start must be <= end");
         return repository.findOverlapOnline(start, end);
     }
 }

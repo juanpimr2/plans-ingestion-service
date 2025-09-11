@@ -6,6 +6,6 @@ import java.util.List;
 
 public interface PlanRepositoryPort {
     void upsertAll(List<Plan> plans);
-    void markMissingAsUnavailable(List<String> seenProviderIds);
+    boolean hasAny(); // útil para warmup
     List<Plan> findOverlapOnline(Instant start, Instant end);
 }

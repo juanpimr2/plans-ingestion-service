@@ -50,7 +50,7 @@ public class WebClientProviderClient implements ProviderClientPort {
                 })
                 .block();
 
-        if (xml == null || xml.isBlank()) {
+        if (Objects.isNull(xml) || xml.isBlank()) {
             log.warn("Provider returned empty body.");
             return List.of();
         }
@@ -64,14 +64,14 @@ public class WebClientProviderClient implements ProviderClientPort {
             throw new RuntimeException("Failed to parse provider XML", ex);
         }
 
-        var basePlans = Optional.ofNullable(root)
+        List<ProviderBasePlan> basePlans = Optional.ofNullable(root)
                 .map(providerPlanList -> providerPlanList.output)
                 .map(providerOutput -> providerOutput.basePlans)
                 .orElse(List.of());
 
         log.debug("Parsed basePlans count={}", basePlans.size());
 
-        var plans = basePlans.stream()
+        List<Plan> plans = basePlans.stream()
                 .filter(Objects::nonNull)
                 .filter(bp -> "online".equalsIgnoreCase(bp.sellMode))
                 .filter(bp -> bp.plan != null)
@@ -85,13 +85,13 @@ public class WebClientProviderClient implements ProviderClientPort {
     private Plan toDomain(ProviderBasePlan bp) {
         ProviderInnerPlan p = bp.plan; //
 
-        var start = parseDateTime(p.planStartDate);
-        var end   = parseDateTime(p.planEndDate);
+        Optional<LocalDateTime> start = parseDateTime(p.planStartDate);
+        Optional<LocalDateTime> end = parseDateTime(p.planEndDate);
 
-        var min = minPrice(p.zones);
-        var max = maxPrice(p.zones);
+        Optional<Double> min = minPrice(p.zones);
+        Optional<Double> max = maxPrice(p.zones);
 
-        var plan = Plan.builder()
+        Plan plan = Plan.builder()
                 .id(p.planId)
                 .title(bp.title)
                 .startDate(start.map(LocalDateTime::toLocalDate).orElse(null))
@@ -130,7 +130,7 @@ public class WebClientProviderClient implements ProviderClientPort {
         return Optional.ofNullable(zones)
                 .stream()
                 .flatMap(List::stream)
-                .map(z -> z.price)
+                .map(providerZone -> providerZone.price)
                 .filter(Objects::nonNull)
                 .map(Double::valueOf)
                 .max(Comparator.naturalOrder());

@@ -16,10 +16,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Test de integración REAL contra el provider (sin mocks).
- * Desactivado por defecto para no romper CI.
- *
- * Ejecutar:
- *   mvn -Dprovider.it=true -Dspring.profiles.active=test -Dlogger.level=DEBUG -Dtest=ProviderClientIT test
  */
 @SpringBootTest
 @ActiveProfiles("test")
