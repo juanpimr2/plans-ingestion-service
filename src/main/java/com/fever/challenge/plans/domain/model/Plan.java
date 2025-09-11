@@ -1,18 +1,23 @@
 package com.fever.challenge.plans.domain.model;
 
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.List;
 import lombok.*;
 
-@Data @Builder @AllArgsConstructor @NoArgsConstructor
+@Data
+@Builder
+@AllArgsConstructor
+@NoArgsConstructor
 public class Plan {
-    private String providerId;
+    private String id;
     private String title;
-    private String sellMode;
-    private Instant startsAt;
-    private Instant endsAt;
-    private List<Zone> zones;
-    private Instant firstSeenAt;
-    private Instant lastSeenAt;
-    private boolean currentlyAvailable;
+    private LocalDate startDate;
+    private LocalTime startTime;
+    private LocalDate endDate;
+    private LocalTime endTime;
+    private Double minPrice;
+    private Double maxPrice;
 }
+

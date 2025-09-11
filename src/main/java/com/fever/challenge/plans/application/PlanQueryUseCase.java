@@ -1,6 +1,7 @@
 package com.fever.challenge.plans.application;
 
-import com.fever.challenge.plans.adapters.in.rest.dto.PlanDto;
+import com.fever.challenge.plans.domain.model.Plan;
+import com.fever.challenge.plans.domain.service.PlanService;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
@@ -8,9 +9,13 @@ import java.util.List;
 
 @Component
 public class PlanQueryUseCase {
+    private final PlanService service;
 
-    public List<PlanDto> findWithin(Instant startsAt, Instant endsAt) {
-        // Stub inicial: devuelve lista vacía
-        return List.of();
+    public PlanQueryUseCase(PlanService service) {
+        this.service = service;
+    }
+
+    public List<Plan> findWithin(Instant startsAt, Instant endsAt) {
+        return service.findWithin(startsAt, endsAt);
     }
 }
