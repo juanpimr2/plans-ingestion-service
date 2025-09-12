@@ -1,6 +1,7 @@
 package com.fever.challenge.plans.adapters.out.persistence;
 
 import com.fever.challenge.plans.adapters.out.persistence.entity.PlanEntity;
+import com.fever.challenge.plans.adapters.out.persistence.mapper.PlanPersistenceMapper;
 import com.fever.challenge.plans.adapters.out.persistence.repo.JpaPlanRepository;
 import com.fever.challenge.plans.domain.model.Plan;
 import com.fever.challenge.plans.domain.port.PlanRepositoryPort;
@@ -8,7 +9,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.*;
+import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -18,75 +19,57 @@ import java.util.Optional;
 @Transactional
 public class PlanRepositoryAdapter implements PlanRepositoryPort {
 
-    private final JpaPlanRepository jpa;
+    public static final String ONLINE = "online";
+    public static final String PLAN_ID_CANNOT_BE_NULL = "Plan id cannot be null";
+    private final JpaPlanRepository planRepository;
+    private final PlanPersistenceMapper mapper;
 
     @Override
     public void upsertAll(List<Plan> plans) {
-        final Instant now = Instant.now();
+        final var now = Instant.now();
 
-        final List<PlanEntity> entities = plans.stream()
-                .map(p -> {
-                    final String providerId = String.valueOf(p.getId());
+        plans.stream()
+                .filter(Objects::nonNull)
+                .map(plan -> {
+                    String providerId = Objects.requireNonNull(
+                            plan.getId(), PLAN_ID_CANNOT_BE_NULL);
+                    String providerIdStr = String.valueOf(providerId);
 
-                    final PlanEntity e = jpa.findByProviderId(providerId).orElseGet(() -> {
-                        PlanEntity ne = new PlanEntity();
-                        ne.setProviderId(providerId);
-                        ne.setFirstSeenAt(now);
-                        return ne;
+                    final Optional<PlanEntity> existing = planRepository.findByProviderId(providerIdStr);
+
+                    PlanEntity entity = existing.orElseGet(() -> {
+                        PlanEntity planEntity = mapper.toEntity(plan);
+                        planEntity.setFirstSeenAt(now);
+                        return planEntity;
                     });
 
-                    e.setTitle(p.getTitle());
-                    e.setSellMode("online");
-                    e.setStartsAt(toInstantUtc(p.getStartDate(), p.getStartTime()));
-                    e.setEndsAt(toInstantUtc(p.getEndDate(), p.getEndTime()));
-                    e.setMinPrice(p.getMinPrice());
-                    e.setMaxPrice(p.getMaxPrice());
-                    e.setLastSeenAt(now);
-                    e.setCurrentlyAvailable(true);
-                    return e;
+                    existing.ifPresent(planEntity -> mapper.updateEntityFromDomain(plan, entity));
+
+                    entity.setSellMode(ONLINE);
+                    entity.setCurrentlyAvailable(true);
+                    entity.setLastSeenAt(now);
+
+                    if (!Objects.equals(entity.getProviderId(), providerIdStr)) {
+                        entity.setProviderId(providerIdStr);
+                    }
+
+                    return entity;
                 })
-                .toList();
-
-        jpa.saveAll(entities);
-    }
-
-    private static Instant toInstantUtc(LocalDate d, LocalTime t) {
-        return (Objects.isNull(d) || Objects.isNull(t))
-                ? null
-                : ZonedDateTime.of(d, t, ZoneOffset.UTC).toInstant();
+                .forEach(planRepository::save);
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<Plan> findOverlapOnline(Instant start, Instant end) {
-        // solapamiento: starts_at < end  &&  ends_at > start
-        return jpa.findBySellModeAndStartsAtBeforeAndEndsAtAfter("online", end, start)
+        return planRepository.findBySellModeAndStartsAtBeforeAndEndsAtAfter(ONLINE, end, start)
                 .stream()
-                .map(this::toDomain)
+                .map(mapper::toDomain)
                 .toList();
     }
 
     @Override
     @Transactional(readOnly = true)
     public boolean hasAny() {
-        return jpa.count() > 0;
-    }
-
-    private Plan toDomain(PlanEntity e) {
-        final Optional<LocalDateTime> s = Optional.ofNullable(e.getStartsAt())
-                .map(i -> LocalDateTime.ofInstant(i, ZoneOffset.UTC));
-        final Optional<LocalDateTime> en = Optional.ofNullable(e.getEndsAt())
-                .map(i -> LocalDateTime.ofInstant(i, ZoneOffset.UTC));
-
-        return Plan.builder()
-                .id(e.getProviderId()) // ya es String
-                .title(e.getTitle())
-                .startDate(s.map(LocalDateTime::toLocalDate).orElse(null))
-                .startTime(s.map(LocalDateTime::toLocalTime).orElse(null))
-                .endDate(en.map(LocalDateTime::toLocalDate).orElse(null))
-                .endTime(en.map(LocalDateTime::toLocalTime).orElse(null))
-                .minPrice(e.getMinPrice())
-                .maxPrice(e.getMaxPrice())
-                .build();
+        return planRepository.count() > 0;
     }
 }
