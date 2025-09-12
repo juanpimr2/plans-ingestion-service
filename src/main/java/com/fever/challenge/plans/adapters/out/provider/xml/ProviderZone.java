@@ -12,7 +12,6 @@ public class ProviderZone {
     @JacksonXmlProperty(isAttribute = true)
     public String name;
 
-    // En tu XML no aparece currency; lo dejamos fuera.
     @JacksonXmlProperty(isAttribute = true)
     public String price;
 

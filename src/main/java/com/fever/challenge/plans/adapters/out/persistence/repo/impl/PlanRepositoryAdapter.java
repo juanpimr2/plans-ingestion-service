@@ -1,4 +1,4 @@
-package com.fever.challenge.plans.adapters.out.persistence;
+package com.fever.challenge.plans.adapters.out.persistence.repo.impl;
 
 import com.fever.challenge.plans.adapters.out.persistence.entity.PlanEntity;
 import com.fever.challenge.plans.adapters.out.persistence.mapper.PlanPersistenceMapper;

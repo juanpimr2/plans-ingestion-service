@@ -13,7 +13,8 @@ import lombok.*;
 @Builder
 public class PlanEntity {
 
-    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     @Column(name="provider_id", unique = true, nullable = false)
     private String providerId;

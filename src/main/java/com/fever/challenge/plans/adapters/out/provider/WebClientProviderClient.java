@@ -45,7 +45,8 @@ public class WebClientProviderClient implements ProviderClientPort {
                 .bodyToMono(String.class)
                 .timeout(CALL_TIMEOUT)
                 .onErrorResume(ex -> {
-                    log.error("HTTP call to provider failed (timeout={}s): {}", CALL_TIMEOUT.toSeconds(), ex.getCause().toString());
+                    String cause = (ex.getCause() != null) ? ex.getCause().toString() : ex.toString();
+                    log.error("HTTP call to provider failed (timeout={}s): {}", CALL_TIMEOUT.toSeconds(), cause);
                     return Mono.error(ex);
                 })
                 .block();

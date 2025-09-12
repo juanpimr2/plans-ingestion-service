@@ -1,4 +1,4 @@
-package com.fever.challenge.plans.application.orchestation;
+package com.fever.challenge.plans.application.orchestration;
 
 import com.fever.challenge.plans.domain.model.Plan;
 

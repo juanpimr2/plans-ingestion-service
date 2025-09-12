@@ -7,7 +7,6 @@ import org.mapstruct.*;
 @Mapper(componentModel = "spring", uses = { TimeMapper.class })
 public interface PlanPersistenceMapper {
 
-    // Domain -> Entity (crear una entidad nueva)
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "providerId", source = "id")
     @Mapping(target = "startsAt", expression = "java(TimeMapper.toInstant(plan.getStartDate(), plan.getStartTime()))")
@@ -18,7 +17,6 @@ public interface PlanPersistenceMapper {
     @Mapping(target = "currentlyAvailable", ignore = true)
     PlanEntity toEntity(Plan plan);
 
-    // Actualizar una entidad existente con datos del dominio (sin tocar campos de infraestructura)
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "providerId", ignore = true)
     @Mapping(target = "startsAt", expression = "java(TimeMapper.toInstant(plan.getStartDate(), plan.getStartTime()))")
