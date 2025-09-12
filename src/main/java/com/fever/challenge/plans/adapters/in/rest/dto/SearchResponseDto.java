@@ -1,29 +1,21 @@
 package com.fever.challenge.plans.adapters.in.rest.dto;
 
-import lombok.*;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.databind.PropertyNamingStrategies;
+import com.fasterxml.jackson.databind.annotation.JsonNaming;
+import lombok.Builder;
+import lombok.Value;
 
 import java.util.List;
 
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
+@JsonInclude(JsonInclude.Include.NON_NULL)
+@JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+@Value
 @Builder
 public class SearchResponseDto {
-    private Data data;
-
-    @Getter
-    @Setter
-    @NoArgsConstructor
-    @AllArgsConstructor
-    @Builder
-    public static class Data {
-        private List<EventDto> events;
-    }
+    List<EventDto> events;
 
     public static SearchResponseDto of(List<EventDto> events) {
-        return SearchResponseDto.builder()
-                .data(Data.builder().events(events).build())
-                .build();
+        return SearchResponseDto.builder().events(events).build();
     }
 }
