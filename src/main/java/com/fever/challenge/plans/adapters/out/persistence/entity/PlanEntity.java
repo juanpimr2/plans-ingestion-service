@@ -5,7 +5,14 @@ import java.time.Instant;
 import lombok.*;
 
 @Entity
-@Table(name = "plans")
+@Table(
+        name = "plans",
+        indexes = {
+                @Index(name = "idx_plans_time_window", columnList = "starts_at,ends_at"),
+                @Index(name = "idx_plans_sell_mode", columnList = "sell_mode"),
+                @Index(name = "idx_plans_sell_mode_time", columnList = "sell_mode,starts_at,ends_at")
+        }
+)
 @Getter
 @Setter
 @NoArgsConstructor

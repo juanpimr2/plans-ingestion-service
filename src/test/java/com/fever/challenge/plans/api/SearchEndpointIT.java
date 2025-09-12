@@ -1,9 +1,10 @@
 package com.fever.challenge.plans.api;
 
 import com.fever.challenge.plans.adapters.out.persistence.entity.PlanEntity;
-import com.fever.challenge.plans.adapters.out.persistence.repo.JpaPlanRepository;
+import com.fever.challenge.plans.adapters.out.persistence.repo.PlanRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mock;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -27,8 +28,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ActiveProfiles("test")
 class SearchEndpointIT {
 
-    @Autowired MockMvc mockMvc;
-    @Autowired JpaPlanRepository jpa;
+    @Autowired
+    MockMvc mockMvc;
+    @Mock
+    PlanRepository jpa;
 
     @BeforeEach
     void cleanDb() {
@@ -40,16 +43,16 @@ class SearchEndpointIT {
         // Semilla en BBDD: plan online que solapa la ventana de búsqueda
         String providerId = "p-" + UUID.randomUUID();
 
-        var e = new PlanEntity();
-        e.setProviderId(providerId);
-        e.setTitle("Sample");
-        e.setSellMode("online");
-        e.setStartsAt(Instant.parse("2021-06-30T21:00:00Z"));
-        e.setEndsAt(Instant.parse("2021-06-30T22:00:00Z"));
-        e.setFirstSeenAt(Instant.now());
-        e.setLastSeenAt(Instant.now());
-        e.setCurrentlyAvailable(true);
-        jpa.save(e);
+        PlanEntity planEntity = new PlanEntity();
+        planEntity.setProviderId(providerId);
+        planEntity.setTitle("Sample");
+        planEntity.setSellMode("online");
+        planEntity.setStartsAt(Instant.parse("2021-06-30T21:00:00Z"));
+        planEntity.setEndsAt(Instant.parse("2021-06-30T22:00:00Z"));
+        planEntity.setFirstSeenAt(Instant.now());
+        planEntity.setLastSeenAt(Instant.now());
+        planEntity.setCurrentlyAvailable(true);
+        jpa.save(planEntity);
 
         mockMvc.perform(get("/search")
                         .param("starts_at", "2021-06-01T00:00:00Z")

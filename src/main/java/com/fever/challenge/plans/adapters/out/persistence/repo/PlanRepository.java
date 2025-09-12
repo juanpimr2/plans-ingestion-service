@@ -5,7 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.time.Instant;
 import java.util.*;
 
-public interface JpaPlanRepository extends JpaRepository<PlanEntity, Long> {
+public interface PlanRepository extends JpaRepository<PlanEntity, Long> {
     Optional<PlanEntity> findByProviderId(String providerId);
     List<PlanEntity> findBySellModeAndStartsAtBeforeAndEndsAtAfter(String sellMode, Instant end, Instant start);
 }

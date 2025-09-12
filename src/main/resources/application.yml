@@ -7,7 +7,7 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: validate   # o none; NO crear con Hibernate
+      ddl-auto: validate
     show-sql: false
 
   flyway:
@@ -18,3 +18,25 @@ fever:
   provider:
     base-url: https://provider.code-challenge.feverup.com/api/events
     timeout-ms: 10000
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui
+    operationsSorter: method
+    tagsSorter: alpha
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      provider:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 10
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 3
+  retry:
+    instances:
+      provider:
+        max-attempts: 3
+        wait-duration: 300ms

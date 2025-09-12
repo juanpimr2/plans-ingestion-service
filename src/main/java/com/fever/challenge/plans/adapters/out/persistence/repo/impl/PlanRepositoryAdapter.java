@@ -2,11 +2,11 @@ package com.fever.challenge.plans.adapters.out.persistence.repo.impl;
 
 import com.fever.challenge.plans.adapters.out.persistence.entity.PlanEntity;
 import com.fever.challenge.plans.adapters.out.persistence.mapper.PlanPersistenceMapper;
-import com.fever.challenge.plans.adapters.out.persistence.repo.JpaPlanRepository;
+import com.fever.challenge.plans.adapters.out.persistence.repo.PlanRepository;
 import com.fever.challenge.plans.domain.model.Plan;
 import com.fever.challenge.plans.domain.port.PlanRepositoryPort;
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
@@ -14,28 +14,32 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
-@Component
+/**
+ * Adaptador de dominio para persistencia de planes.
+ * Se llama “Adapter” en lugar de “Impl” para evitar que Spring Data lo trate como implementación del JPA repository,
+ * lo que producía el ciclo de dependencias.
+ */
+@Repository
 @RequiredArgsConstructor
 @Transactional
 public class PlanRepositoryAdapter implements PlanRepositoryPort {
 
     public static final String ONLINE = "online";
     public static final String PLAN_ID_CANNOT_BE_NULL = "Plan id cannot be null";
-    private final JpaPlanRepository planRepository;
+
+    private final PlanRepository planRepository;
     private final PlanPersistenceMapper mapper;
 
     @Override
     public void upsertAll(List<Plan> plans) {
-        final var now = Instant.now();
-
+        Instant now = Instant.now();
         plans.stream()
                 .filter(Objects::nonNull)
                 .map(plan -> {
-                    String providerId = Objects.requireNonNull(
-                            plan.getId(), PLAN_ID_CANNOT_BE_NULL);
+                    String providerId = Objects.requireNonNull(plan.getId(), PLAN_ID_CANNOT_BE_NULL);
                     String providerIdStr = String.valueOf(providerId);
 
-                    final Optional<PlanEntity> existing = planRepository.findByProviderId(providerIdStr);
+                    Optional<PlanEntity> existing = planRepository.findByProviderId(providerIdStr);
 
                     PlanEntity entity = existing.orElseGet(() -> {
                         PlanEntity planEntity = mapper.toEntity(plan);

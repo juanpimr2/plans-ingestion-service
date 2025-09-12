@@ -5,10 +5,10 @@ import com.fever.challenge.plans.domain.service.PlanService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-@Configuration
+@Configuration(proxyBeanMethods = false)
 public class DomainConfig {
     @Bean
-    public PlanService planService(PlanRepositoryPort repo) {
-        return new PlanService(repo);
+    public PlanService planService(PlanRepositoryPort planRepository) {
+        return new PlanService(planRepository);
     }
 }

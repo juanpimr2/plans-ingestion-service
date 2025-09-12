@@ -1,54 +1,81 @@
+
 # Plans Ingestion Service
 
-Microservice for integrating external provider plans into the Fever marketplace.
-
-The project has been designed as a **long-term maintainable system**, applying **hexagonal architecture** and **SOLID principles**.  
-It integrates plans from an XML provider, persists them into PostgreSQL, and exposes a REST endpoint to search plans efficiently.
+Microservice that ingests events/plans from an external provider, persists them in PostgreSQL, and exposes a search API.  
+Built with **Hexagonal Architecture** and **SOLID** principles. Database is the **source of truth**; provider calls are resilient and can warm-up the DB.
 
 ---
 
-## Features
+## Quick start
 
-- Fetches plans from external provider (XML feed).
-- Stores plans in PostgreSQL with historical persistence:
-  - Plans that disappear from provider responses remain retrievable.
-- Exposes `/search` endpoint with filtering by time window.
-- Resilient provider calls using **Resilience4j** (retries, timeouts).
-- Designed for high availability: database is always the source of truth.
-- Supports **Flyway migrations** for schema evolution.
-- Comprehensive test suite (unit + integration).
+### Requirements
+- JDK 21
+- Maven 3.9+
+- Docker & Docker Compose
+- GNU Make
 
----
-
-## Tech Stack
-
-- **Java 21**
-- **Spring Boot 3.5**
-- **Spring Data JPA + PostgreSQL**
-- **Flyway** for DB migrations
-- **WebClient** for provider integration
-- **Resilience4j** for retries/timeouts
-- **Docker Compose** for local PostgreSQL
-- **JUnit 5 / Mockito** for testing
-- **Lombok & MapStruct** for clean DTOs and mappings
-
----
-
-## Endpoints
-
-### `GET /search`
-
-**Parameters:**
-- `starts_at` – ISO8601 timestamp (UTC)
-- `ends_at` – ISO8601 timestamp (UTC)
-
-**Example:**
-
+### Run locally
 ```bash
-curl --location   'http://localhost:8080/search?starts_at=2021-06-30T20:00:00Z&ends_at=2021-06-30T23:00:00Z'
+# 1) Start Postgres (via Docker Compose)
+make db
+
+# 2) Run the app
+make run
+# App on: http://localhost:8080
+# Swagger UI: http://localhost:8080/swagger-ui or /swagger-ui/index.html
+# OpenAPI JSON: http://localhost:8080/v3/api-docs
+
+# 3) Run tests
+make test
 ```
 
-**Response:**
+### Configuration (application.yml)
+```yaml
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/fever
+    username: postgres
+    password: postgres
+
+fever:
+  provider:
+    base-url: https://provider.code-challenge.feverup.com/api/events
+    connect-timeout-ms: 5000
+    read-timeout-ms: 5000
+  search:
+    warmup-ms: 400   # time budget for warm-up orchestration
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      provider:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 10
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 5s
+        permitted-number-of-calls-in-half-open-state: 3
+  retry:
+    instances:
+      provider:
+        max-attempts: 3
+        wait-duration: 300ms
+```
+
+---
+
+## API
+
+### `GET /search`
+**Query params**
+- `starts_at` — ISO‑8601 instant (UTC), e.g. `2021-06-30T20:00:00Z`
+- `ends_at` — ISO‑8601 instant (UTC), e.g. `2021-06-30T23:00:00Z`
+
+**Curl**
+```bash
+curl -s 'http://localhost:8080/search?starts_at=2021-06-30T20:00:00Z&ends_at=2021-06-30T23:00:00Z'
+```
+
+**Success (200)**
 ```json
 {
   "data": {
@@ -64,111 +91,129 @@ curl --location   'http://localhost:8080/search?starts_at=2021-06-30T20:00:00Z&e
         "max_price": 30.0
       }
     ]
-  }
+  },
+  "error": null
 }
 ```
 
----
+**Errors**
+```json
+// 400 Bad Request
+{ "data": null, "error": { "code": "400", "message": "The request was not correctly formed (missing required parameters, wrong types...)" } }
 
-## Development
+// 404 Not Found
+{ "data": null, "error": { "code": "404", "message": "No plans were found for the specified time window." } }
 
-### Requirements
-- JDK 21
-- Maven 3.9+
-- Docker & Docker Compose
-- GNU Make
-
-### Running with Makefile
-
-The repository includes a **Makefile** to simplify common operations.
-
-| Target           | Description                                    |
-|------------------|------------------------------------------------|
-| `make db`        | Start PostgreSQL container (`docker-compose`)  |
-| `make stop`      | Stop PostgreSQL container                      |
-| `make run`       | Run the Spring Boot application with Maven     |
-| `make test`      | Run the full test suite                        |
-| `make clean`     | Clean compiled artifacts (`mvn clean`)         |
-
-**Example:**
-
-```bash
-# Start DB
-make db
-
-# In a separate terminal: run the app
-make run
-
-# Run tests
-make test
+// 500 Internal Server Error
+{ "data": null, "error": { "code": "500", "message": "An unexpected error occurred." } }
 ```
 
-The PostgreSQL container runs with:
-- Host: `localhost`
-- Port: `5432`
-- DB: `fever`
-- User: `postgres`
-- Password: `postgres`
+**Contract notes**
+- On success, `data.events` contains the list. On error, `data` is `null` and `error` includes `{code, message}`.
 
 ---
 
-## Database
+## Architecture
 
-Schema managed with **Flyway** migrations in `src/main/resources/db/migration`.
+**Layers / packages**
+- `domain.*` — entities and business services (pure Java, framework‑free).
+- `application.*` — use cases/orchestration (`SearchPlansUseCase`, `RefreshPlansUseCase`, `SearchWithWarmupUseCase`).
+- `adapters.in.rest.*` — controllers, DTOs, mappers, and global exception advice.
+- `adapters.out.persistence.*` — JPA repository adapter and mappers.
+- `adapters.out.provider.*` — provider client (WebClient) + DTOs + mappers.
+- `config.*` — configuration beans (HTTP client, OpenAPI, etc.).
 
-Initial table `plans` contains:
-- Provider ID
-- Title
-- Sell mode
-- Start / End timestamps
-- Min / Max price
-- First seen / Last seen
-- Availability flag
+**Ports & Adapters**
+- `PlanRepositoryPort` (domain) ⇄ `PlanRepositoryAdapter` (out/persistence).
+- `ProviderClientPort` (domain) ⇄ `WebClientProviderClient` (out/provider).
 
-Indexes:
+**Resilience**
+- Provider client guarded by **Resilience4j**: `@CircuitBreaker` + `@Retry` with a fallback returning an empty list.
+- Timeouts at HTTP client level.
+
+**Warm-up**
+- Search endpoint always answers from DB.
+- When needed, orchestration can trigger a refresh with a budget `fever.search.warmup-ms` (non-blocking or short-blocking).
+
+---
+
+## Persistence
+
+**Entity**
+- `plans` table stores provider plans and keeps historical data.
+- Fields: provider_id, title, sell_mode, starts_at, ends_at, min_price, max_price, first_seen_at, last_seen_at, currently_available.
+
+**Indexes**
 - `(starts_at, ends_at)`
 - `(sell_mode)`
+- Optional composite `(sell_mode, starts_at, ends_at)` to speed overlap queries.
+
+**Migrations**
+- Managed by **Flyway** in `src/main/resources/db/migration`.
+
+---
+
+## Project structure (excerpt)
+
+```
+src/main/java/com/fever/challenge/plans
+├─ adapters
+│  ├─ in
+│  │  └─ rest
+│  │     ├─ PlanController.java
+│  │     ├─ dto/ (EventDto, SearchResponseDto)
+│  │     ├─ mapper/ (EventDtoMapper)
+│  │     └─ advice/ (RestApiExceptionHandler)
+│  └─ out
+│     ├─ persistence
+│     │  ├─ entity/ (PlanEntity)
+│     │  ├─ repo/ (PlanRepository)
+│     │  └─ adapter/ (PlanRepositoryAdapter)
+│     └─ provider
+│        ├─ WebClientProviderClient.java
+│        ├─ dto/ (ProviderEventDto, ProviderResponseDto)
+│        └─ mapper/ (ProviderEventMapper)
+├─ application
+│  ├─ search/ (SearchPlansUseCase, impl)
+│  ├─ refresh/ (RefreshPlansUseCase, impl)
+│  └─ orchestration/ (SearchWithWarmupUseCase, impl)
+├─ domain
+│  ├─ model/ (Plan, ErrorCode, ErrorDescription)
+│  ├─ port/ (PlanRepositoryPort, ProviderClientPort)
+│  └─ service/ (PlanService)
+└─ config (HttpClientConfig, OpenApiConfig, DomainConfig)
+```
+
+---
+
+## Makefile targets
+
+| Target | Use |
+|---|---|
+| `make db` | Start local PostgreSQL |
+| `make run` | Run Spring Boot app |
+| `make test` | Run tests |
+| `make stop` | Stop PostgreSQL |
+| `make clean` | Maven clean |
 
 ---
 
 ## Testing
 
+- **Unit**: services and mappers.
+- **Integration**: controller (MockMvc), repository (H2), provider client (mocked WebClient).
 ```bash
 make test
 ```
 
-Covers:
-- Unit tests for services TODO: test for mappers
-- Integration tests for persistence (H2)
-- Integration tests for provider client (mocked & real)
-
 ---
 
-## Design Considerations
+## Notes & decisions
 
-- **Hexagonal architecture**:
-  - `adapters.in.rest` for controllers
-  - `application.*` for use cases
-  - `adapters.out.*` for persistence & provider
-  - `domain.*` for pure business logic
-- **SOLID principles**:
-  - Clear separation of use cases (query, refresh, orchestration)
-  - Repository & Provider as **ports**, injected via adapters
-- **Resilience**:
-  - Provider calls retried & timed out
-  - Database is the primary source of truth
-- **Performance**:
-  - Search endpoint always answers from DB (hundreds of ms SLA)
-  - Async refresh keeps DB updated in the background
-
----
-
-## Future Enhancements
-
-- Batch upsert for higher ingestion throughput
-- Caching layer for hot queries
-- Metrics and tracing with Micrometer
-- Load testing for high-traffic scenarios (5k-10k req/s)
+- Provider mapping isolated in **out/provider** with DTOs and MapStruct mapper.
+- Domain remains framework‑free.
+- Global exception handler in **in/rest/advice** maps exceptions → API error contract.
+- Consistent naming: avoid `Impl` in adapters (use `*Adapter`, `*Client`).
 
 ---
 
