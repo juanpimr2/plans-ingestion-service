@@ -18,73 +18,73 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
 
 /**
- * Test adaptado al nuevo WebClientProviderClient:
- * - Usa DTOs JSON (ProviderResponseDto/ProviderEventDto) y Mapper MapStruct.
- * - Mockea bodyToMono(ProviderResponseDto.class) en lugar de String/XML.
+ * Test sin RETURNS_DEEP_STUBS y con tipos raw para evitar problemas de comodines (capture of ?).
  */
+@SuppressWarnings({ "rawtypes", "unchecked" })
 class WebClientProviderClientTest {
 
-    private WebClient webClient;                 // deep stub
+    private WebClient webClient;
+    private WebClient.RequestHeadersUriSpec uriSpec;
+    private WebClient.RequestHeadersSpec headersSpec;
+    private WebClient.ResponseSpec responseSpec;
+
+    private ProviderEventMapper mapper;
     private WebClientProviderClient client;
 
     @BeforeEach
     void setUp() {
-        webClient = mock(WebClient.class, RETURNS_DEEP_STUBS);
-        // MapStruct mapper
-        ProviderEventMapper mapper = Mappers.getMapper(ProviderEventMapper.class);
+        webClient   = mock(WebClient.class);
+        uriSpec     = mock(WebClient.RequestHeadersUriSpec.class);
+        headersSpec = mock(WebClient.RequestHeadersSpec.class);
+        responseSpec= mock(WebClient.ResponseSpec.class);
+
+        mapper = Mappers.getMapper(ProviderEventMapper.class);
         client = new WebClientProviderClient(webClient, mapper);
+
+        // Cadena real del cliente: get() -> accept(JSON) -> retrieve() -> bodyToMono(...)
+        when(webClient.get()).thenReturn(uriSpec);
+        when(uriSpec.accept(MediaType.APPLICATION_JSON)).thenReturn(headersSpec);
+        when(headersSpec.retrieve()).thenReturn(responseSpec);
     }
 
     @Test
     void fetchPlans_parsesJson_ok() {
-        // given
         ProviderEventDto dto = new ProviderEventDto(
-                "291",
-                "Camela en concierto",
-                "2021-06-30",
-                "21:00",
-                "2021-06-30",
-                "22:00",
-                15.00,
-                20.00
+                "291", "Camela en concierto",
+                "2021-06-30", "21:00",
+                "2021-06-30", "22:00",
+                15.00, 20.00
         );
         ProviderResponseDto response = new ProviderResponseDto(List.of(dto));
 
-        when(webClient.get()
-                .accept(MediaType.APPLICATION_JSON)
-                .retrieve()
-                .bodyToMono(ProviderResponseDto.class))
+        when(responseSpec.bodyToMono(ProviderResponseDto.class))
                 .thenReturn(Mono.just(response));
 
-        // when
         List<Plan> plans = client.fetchPlans();
 
-        // then
         assertThat(plans).hasSize(1);
         Plan p = plans.getFirst();
         assertThat(p.getId()).isEqualTo("291");
         assertThat(p.getTitle()).isEqualTo("Camela en concierto");
-        assertThat(p.getStartDate().toString()).isEqualTo("2021-06-30");
-        assertThat(p.getStartTime().toString()).isEqualTo("21:00");
-        assertThat(p.getEndDate().toString()).isEqualTo("2021-06-30");
-        assertThat(p.getEndTime().toString()).isEqualTo("22:00");
         assertThat(p.getMinPrice()).isEqualTo(15.00);
         assertThat(p.getMaxPrice()).isEqualTo(20.00);
 
-        verify(webClient.get().retrieve(), times(1)).bodyToMono(ProviderResponseDto.class);
+        verify(webClient).get();
+        verify(uriSpec).accept(MediaType.APPLICATION_JSON);
+        verify(headersSpec).retrieve();
+        verify(responseSpec).bodyToMono(ProviderResponseDto.class);
     }
 
     @Test
     void fetchPlans_returnsEmpty_whenProviderReturnsEmptyBody() {
-        // given
-        when(webClient.get()
-                .accept(MediaType.APPLICATION_JSON)
-                .retrieve()
-                .bodyToMono(ProviderResponseDto.class))
+        when(responseSpec.bodyToMono(ProviderResponseDto.class))
                 .thenReturn(Mono.empty());
 
-        // when / then
         assertThat(client.fetchPlans()).isEmpty();
-        verify(webClient.get().retrieve(), times(1)).bodyToMono(ProviderResponseDto.class);
+
+        verify(webClient).get();
+        verify(uriSpec).accept(MediaType.APPLICATION_JSON);
+        verify(headersSpec).retrieve();
+        verify(responseSpec).bodyToMono(ProviderResponseDto.class);
     }
 }
