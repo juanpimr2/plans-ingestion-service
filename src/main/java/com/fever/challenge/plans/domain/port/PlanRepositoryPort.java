@@ -6,6 +6,5 @@ import java.util.List;
 
 public interface PlanRepositoryPort {
     void upsertAll(List<Plan> plans);
-    boolean hasAny();
     List<Plan> findOverlapOnline(Instant start, Instant end);
 }

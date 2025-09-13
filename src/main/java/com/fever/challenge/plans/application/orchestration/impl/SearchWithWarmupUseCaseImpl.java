@@ -7,12 +7,12 @@ import com.fever.challenge.plans.domain.model.Plan;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
-import java.time.*;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
-import java.util.Objects;
 
-@Slf4j
 @Component
+@Slf4j
 public class SearchWithWarmupUseCaseImpl implements SearchWithWarmupUseCase {
 
     private final SearchPlansUseCase search;
@@ -27,23 +27,10 @@ public class SearchWithWarmupUseCaseImpl implements SearchWithWarmupUseCase {
     @Override
     public List<Plan> execute(Instant startsAt, Instant endsAt, Duration warmupBudget) {
         // 1) Buscar en DB
-        var db = search.findWithin(startsAt, endsAt);
+        List<Plan> db = search.findWithin(startsAt, endsAt);
         // 2) Disparar warmup en background (no necesita resultados de search)
         refresh.refreshNonBlocking(warmupBudget);
         // 3) Devolver lo que haya en DB (rápido, sin bloquear demasiado)
         return db;
-    }
-
-
-    private static boolean overlap(Plan p, Instant start, Instant end) {
-        Instant s = toInstantUtc(p.getStartDate(), p.getStartTime());
-        Instant e = toInstantUtc(p.getEndDate(), p.getEndTime());
-        if (Objects.isNull(s) || Objects.isNull(e)) return false;
-        return s.isBefore(end) && e.isAfter(start);
-    }
-
-    private static Instant toInstantUtc(LocalDate d, LocalTime t) {
-        return (Objects.isNull(d) || Objects.isNull(t)) ? null
-                : ZonedDateTime.of(d, t, ZoneOffset.UTC).toInstant();
     }
 }
