@@ -38,9 +38,8 @@ class WebClientProviderClientTest {
         responseSpec = mock(WebClient.ResponseSpec.class);
 
         ProviderPlanMapper mapper = Mappers.getMapper(ProviderPlanMapper.class);
-        XmlMapper xmlMapper = new XmlMapper();
 
-        client = new WebClientProviderClient(webClient, xmlMapper, mapper);
+        client = new WebClientProviderClient(webClient, mapper);
 
         when(webClient.get()).thenReturn(uriSpec);
         when(uriSpec.accept(MediaType.APPLICATION_XML)).thenReturn(headersSpec);

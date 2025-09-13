@@ -10,6 +10,7 @@ import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.github.resilience4j.retry.annotation.Retry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -25,25 +26,31 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class WebClientProviderClient implements ProviderClientPort {
 
-    private static final Duration CALL_TIMEOUT = Duration.ofSeconds(3);
+    @Value("${fever.provider.fetch-timeout-ms:3000}")
+    private long fetchTimeoutMs;
+
 
     private final WebClient providerWebClient;
-    private final XmlMapper xmlMapper;               // INYECTADO (ver nota abajo)
-    private final ProviderPlanMapper mapper;         // INYECTADO (MapStruct)
+    private final XmlMapper xmlMapper = new XmlMapper();
+    private final ProviderPlanMapper mapper;
 
     @Override
     @CircuitBreaker(name = "provider", fallbackMethod = "fallbackFetch")
     @Retry(name = "provider")
     public List<Plan> fetchPlans() {
-        log.debug("Calling provider to fetch plans (XML)...");
+
+        log.debug("Calling provider to fetch plans (XML)…");
+        Duration callTimeout = Duration.ofMillis(fetchTimeoutMs);
+
+
         String xml = providerWebClient
                 .get()
                 .accept(MediaType.APPLICATION_XML)
                 .retrieve()
                 .bodyToMono(String.class)
-                .timeout(CALL_TIMEOUT)
+                .timeout(callTimeout)
                 .onErrorResume(ex -> {
-                    log.error("HTTP call to provider failed (timeout={}s): {}", CALL_TIMEOUT.toSeconds(),
+                    log.error("HTTP call to provider failed (timeout={}s): {}", callTimeout.toSeconds(),
                             ex.getMessage());
                     return Mono.error(ex);
                 })

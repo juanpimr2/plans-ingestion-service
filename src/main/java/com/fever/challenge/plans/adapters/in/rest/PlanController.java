@@ -16,8 +16,10 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.constraints.NotNull;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -32,12 +34,13 @@ import java.util.Objects;
 @RestController
 @RequestMapping
 @Tag(name = "Search", description = "Search events within a time window")
+@Slf4j
 public class PlanController {
 
     private final SearchWithWarmupUseCase useCase;
     private final EventDtoMapper mapper;
 
-    @Value("${fever.search.warmup-ms:400}")
+    @Value("${fever.search.warmup-ms:4000}")
     private long warmupMs;
 
     public PlanController(SearchWithWarmupUseCase useCase, EventDtoMapper mapper) {
@@ -45,7 +48,7 @@ public class PlanController {
         this.mapper = mapper;
     }
 
-    @GetMapping("/search")
+    @GetMapping(path = "/search", produces = MediaType.APPLICATION_JSON_VALUE)
     @Operation(
             summary = "Search plans",
             description = "Returns online plans overlapping the given [starts_at, ends_at] window. " +
@@ -75,7 +78,9 @@ public class PlanController {
                             )))
     })
     public ResponseEntity<SearchResponseDto> search(
-            @RequestParam("starts_at")
+
+
+    @RequestParam("starts_at")
             @NotNull
             @Parameter(description = "Start of the window (ISO-8601 instant)", example = "2021-06-30T20:00:00Z")
             Instant startsAt,
@@ -85,6 +90,8 @@ public class PlanController {
             @Parameter(description = "End of the window (ISO-8601 instant)", example = "2021-06-30T23:00:00Z")
             Instant endsAt
     ) {
+
+        log.info("warmupMs : " + warmupMs);
         // Validación mínima: provoca 400 a través del handler
         if (startsAt.compareTo(endsAt) >= 0) {
             throw new IllegalArgumentException("starts_at must be before ends_at");

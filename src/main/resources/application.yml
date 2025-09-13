@@ -1,4 +1,6 @@
 spring:
+  main:
+    web-application-type: servlet
   datasource:
     url: jdbc:postgresql://localhost:5432/fever
     username: postgres
@@ -17,16 +19,14 @@ spring:
 fever:
   provider:
     base-url: https://provider.code-challenge.feverup.com/api/events
-    connect-timeout-ms: 5000
-    read-timeout-ms: 5000
+    connect-timeout-ms: 6000
+    read-timeout-ms: 6000
+    fetch-timeout-ms: 6000
   search:
-    warmup-ms: 400
+    warmup-ms: 5000
 springdoc:
-  api-docs:
-    path: /v3/api-docs
   swagger-ui:
     disable-swagger-default-url: true
-    url: /v3/api-docs
 
 
 resilience4j:
