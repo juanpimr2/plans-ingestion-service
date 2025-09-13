@@ -1,4 +1,4 @@
-package com.fever.challenge.plans.adapters.in.rest.globalexceptionhandler;
+package com.fever.challenge.plans.adapters.in.rest.advice;
 
 import com.fever.challenge.plans.adapters.in.rest.dto.SearchResponseDto;
 import com.fever.challenge.plans.domain.model.ErrorCode;
