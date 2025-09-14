@@ -8,31 +8,34 @@ import org.mapstruct.Mappings;
 
 import java.util.List;
 
+/**
+ * Mapper for converting {@link Plan} domain models to {@link EventDto} data transfer objects.
+ * Uses {@link RestTimeMapper} for date and time conversions.
+ */
 @Mapper(componentModel = "spring", uses = { RestTimeMapper.class })
 public interface EventDtoMapper {
 
-    // ---- Plan -> EventDto (único) ----
-    @Mappings({
-            @Mapping(target = "id",         source = "id"),
-            @Mapping(target = "title",      source = "title"),
-            @Mapping(target = "startDate", source = "startDate", qualifiedByName = "dateToString"),
-            @Mapping(target = "startTime", source = "startTime", qualifiedByName = "timeToString"),
-            @Mapping(target = "endDate",   source = "endDate",   qualifiedByName = "dateToString"),
-            @Mapping(target = "endTime",   source = "endTime",   qualifiedByName = "timeToString"),
-            @Mapping(target = "minPrice",  source = "minPrice"),
-            @Mapping(target = "maxPrice",  source = "maxPrice")
-    })
+    /**
+     * Converts a {@link Plan} to an {@link EventDto}.
+     *
+     * @param plan the plan to convert
+     * @return the corresponding EventDto
+     */
+    @Mapping(target = "id",         source = "id")
+    @Mapping(target = "title",      source = "title")
+    @Mapping(target = "startDate",  source = "startDate", qualifiedByName = "dateToString")
+    @Mapping(target = "startTime",  source = "startTime", qualifiedByName = "timeToString")
+    @Mapping(target = "endDate",    source = "endDate",   qualifiedByName = "dateToString")
+    @Mapping(target = "endTime",    source = "endTime",   qualifiedByName = "timeToString")
+    @Mapping(target = "minPrice",   source = "minPrice")
+    @Mapping(target = "maxPrice",   source = "maxPrice")
     EventDto toDto(Plan plan);
 
-    @Mappings({
-            @Mapping(target = "id",         source = "id"),
-            @Mapping(target = "title",      source = "title"),
-            @Mapping(target = "startDate", source = "startDate", qualifiedByName = "dateToString"),
-            @Mapping(target = "startTime", source = "startTime", qualifiedByName = "timeToString"),
-            @Mapping(target = "endDate",   source = "endDate",   qualifiedByName = "dateToString"),
-            @Mapping(target = "endTime",   source = "endTime",   qualifiedByName = "timeToString"),
-            @Mapping(target = "minPrice",  source = "minPrice"),
-            @Mapping(target = "maxPrice",  source = "maxPrice")
-    })
+    /**
+     * Converts a list of {@link Plan} objects to a list of {@link EventDto} objects.
+     *
+     * @param plans the list of plans to convert
+     * @return the corresponding list of EventDto objects
+     */
     List<EventDto> toDtoList(List<Plan> plans);
 }

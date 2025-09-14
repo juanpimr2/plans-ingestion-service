@@ -23,8 +23,6 @@ import org.springframework.web.bind.annotation.GetMapping;
         }
 )
 public class OpenApiConfig {
-
-    // Bean vacío: la metadata la aportan las anotaciones
     @Bean
     public OpenAPI openAPI() {
         return new OpenAPI();

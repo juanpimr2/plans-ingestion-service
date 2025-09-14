@@ -13,6 +13,19 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 
+/**
+ * Use case implementation for searching plans with a warm-up strategy.
+ *
+ * <p>
+ * This class provides a search operation that first checks for cached data.
+ * If cached data is available, it returns the results immediately and triggers a background refresh.
+ * If no cached data is present (cold start), it performs a blocking warm-up within the specified budget before returning results.
+ * </p>
+ *
+ * <p>
+ * Implements the {@link SearchWithWarmupUseCase} interface.
+ * </p>
+ */
 @Component
 @Slf4j
 @RequiredArgsConstructor

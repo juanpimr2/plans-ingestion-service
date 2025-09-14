@@ -26,11 +26,11 @@ class PlanControllerIT {
     MockMvc mockMvc;
 
     @Autowired
-    PlanRepository jpa;
+    PlanRepository planRepository;
 
     @BeforeEach
     void cleanDb() {
-        jpa.deleteAll();
+        planRepository.deleteAll();
     }
 
     @Test
@@ -46,7 +46,7 @@ class PlanControllerIT {
         e.setFirstSeenAt(Instant.now());
         e.setLastSeenAt(Instant.now());
         e.setCurrentlyAvailable(true);
-        jpa.save(e);
+        planRepository.save(e);
 
         mockMvc.perform(get("/search")
                         .param("starts_at", "2021-06-01T00:00:00Z")
