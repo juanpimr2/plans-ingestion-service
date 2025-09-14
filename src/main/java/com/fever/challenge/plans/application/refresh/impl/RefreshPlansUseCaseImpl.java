@@ -86,8 +86,4 @@ public class RefreshPlansUseCaseImpl implements RefreshPlansUseCase {
         }
     }
 
-    @Override
-    public boolean hasAny() {
-        return planRepository.hasAny();
-    }
 }

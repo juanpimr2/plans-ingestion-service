@@ -1,9 +1,11 @@
 package com.fever.challenge.plans.application.orchestration.impl;
 
+import com.fever.challenge.plans.adapters.out.persistence.repo.PlanRepository;
 import com.fever.challenge.plans.application.orchestration.SearchWithWarmupUseCase;
 import com.fever.challenge.plans.application.refresh.RefreshPlansUseCase;
 import com.fever.challenge.plans.application.search.SearchPlansUseCase;
 import com.fever.challenge.plans.domain.model.Plan;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -13,16 +15,12 @@ import java.util.List;
 
 @Component
 @Slf4j
+@RequiredArgsConstructor
 public class SearchWithWarmupUseCaseImpl implements SearchWithWarmupUseCase {
 
     private final SearchPlansUseCase search;
     private final RefreshPlansUseCase refresh;
-
-    public SearchWithWarmupUseCaseImpl(SearchPlansUseCase search,
-                                       RefreshPlansUseCase refresh) {
-        this.search = search;
-        this.refresh = refresh;
-    }
+    private final PlanRepository planRepository;
 
     /**
      * Executes a bounded search for {@link Plan} between the given instants.
@@ -42,7 +40,7 @@ public class SearchWithWarmupUseCaseImpl implements SearchWithWarmupUseCase {
         // Fast path: cached data ⇒ return now, refresh in background.
         // Cold start: no data ⇒ warm up briefly, then answer.
 
-        if (!refresh.hasAny()) {
+        if (!planRepository.hasAny()) {
             log.info("No cached plans. Running a short blocking warm-up (budget={}).", warmupBudget);
             refresh.refreshBlocking(warmupBudget);
             return search.findWithin(startsAt, endsAt);

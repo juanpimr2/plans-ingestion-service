@@ -10,4 +10,8 @@ import java.util.Optional;
 public interface PlanRepository extends JpaRepository<PlanEntity, Long> {
     Optional<PlanEntity> findByProviderId(String providerId);
     List<PlanEntity> findBySellModeAndStartsAtBeforeAndEndsAtAfter(String sellMode, Instant end, Instant start);
+    /**
+     * Indica si ya hay planes persistidos.
+     */
+    boolean hasAny();
 }

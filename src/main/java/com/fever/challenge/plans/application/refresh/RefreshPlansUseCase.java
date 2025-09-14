@@ -16,8 +16,5 @@ public interface RefreshPlansUseCase {
      */
     void refreshBlocking(Duration timeout);
 
-    /**
-     * Indica si ya hay planes persistidos.
-     */
-    boolean hasAny();
+
 }

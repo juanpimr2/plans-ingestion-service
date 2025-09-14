@@ -32,6 +32,19 @@ public class PlanRepositoryAdapter implements PlanRepositoryPort {
     private final PlanRepository planRepository;
     private final PlanPersistenceMapper mapper;
 
+    /**
+     * Inserts or updates a list of {@link Plan} objects in the persistence layer.
+     *
+     * <p>For each plan:
+     * <ul>
+     *   <li>If a plan with the same provider ID exists, it is updated with the new data.</li>
+     *   <li>If it does not exist, a new entity is created and persisted.</li>
+     *   <li>Common fields such as sell mode, availability, and timestamps are set or updated.</li>
+     * </ul>
+     *
+     * @param plans the list of plans to upsert (must not be {@code null} or contain {@code null} elements)
+     * @throws NullPointerException if any plan or plan ID is {@code null}
+     */
     @Override
     public void upsertAll(List<Plan> plans) {
         log.info("upsertAll called: processing {} plans…", plans.size());

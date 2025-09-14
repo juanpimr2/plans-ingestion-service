@@ -1,5 +1,6 @@
 package com.fever.challenge.plans.application.orchestration;
 
+import com.fever.challenge.plans.adapters.out.persistence.repo.PlanRepository;
 import com.fever.challenge.plans.application.orchestration.impl.SearchWithWarmupUseCaseImpl;
 import com.fever.challenge.plans.application.refresh.RefreshPlansUseCase;
 import com.fever.challenge.plans.application.search.SearchPlansUseCase;
@@ -19,8 +20,10 @@ class SearchWithWarmupUseCaseImplTest {
     void returns_db_results_and_triggers_non_blocking_refresh() {
         SearchPlansUseCase search = mock(SearchPlansUseCase.class);
         RefreshPlansUseCase refresh = mock(RefreshPlansUseCase.class);
+        PlanRepository planRepository = mock(PlanRepository.class);
+        when(planRepository.hasAny()).thenReturn(true);
 
-        SearchWithWarmupUseCaseImpl uc = new SearchWithWarmupUseCaseImpl(search, refresh);
+        SearchWithWarmupUseCaseImpl uc = new SearchWithWarmupUseCaseImpl(search, refresh, planRepository);
 
         Instant s = Instant.parse("2021-06-30T20:00:00Z");
         Instant e = Instant.parse("2021-06-30T23:00:00Z");
@@ -32,6 +35,5 @@ class SearchWithWarmupUseCaseImplTest {
 
         assertThat(out).isEqualTo(db);
         verify(search, atLeast(1)).findWithin(s, e);
-        when(refresh.hasAny()).thenReturn(true);
     }
 }
