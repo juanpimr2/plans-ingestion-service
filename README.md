@@ -1,8 +1,7 @@
-
 # Plans Ingestion Service
 
-Microservice that ingests events/plans from an external provider, persists them in PostgreSQL, and exposes a search API.  
-Built with **Hexagonal Architecture** and **SOLID** principles. Database is the **source of truth**; provider calls are resilient and can warm-up the DB.
+Microservice that ingests **plans (events)** from an external **XML** provider, persists them in **PostgreSQL**, and exposes a **fast, DB-backed search** endpoint.  
+Built with **Hexagonal Architecture** and **SOLID**. The **database is the source of truth**; provider calls are resilient and never sit on the critical path of reads. Includes a **warm-up orchestration** to avoid cold starts.
 
 ---
 
@@ -16,20 +15,25 @@ Built with **Hexagonal Architecture** and **SOLID** principles. Database is the 
 
 ### Run locally
 ```bash
-# 1) Start Postgres (via Docker Compose)
+# 1) Start Postgres (Docker)
 make db
 
 # 2) Run the app
 make run
-# App on: http://localhost:8080
-# Swagger UI: http://localhost:8080/swagger-ui or /swagger-ui/index.html
-# OpenAPI JSON: http://localhost:8080/v3/api-docs
+# App:        http://localhost:8080
+# Swagger UI: http://localhost:8080/swagger-ui
+# OpenAPI:    http://localhost:8080/v3/api-docs
 
-# 3) Run tests
+# 3) Tests
 make test
 ```
 
-### Configuration (application.yml)
+---
+
+## Configuration (`application.yml`)
+
+> Values tuned to keep `/search` in **hundreds of ms**, even if the provider is slow or down.
+
 ```yaml
 spring:
   datasource:
@@ -40,183 +44,120 @@ spring:
 fever:
   provider:
     base-url: https://provider.code-challenge.feverup.com/api/events
-    connect-timeout-ms: 5000
-    read-timeout-ms: 5000
+    connect-timeout-ms: 250     # fail fast on bad networks
+    read-timeout-ms: 1000       # socket limit; keep > fetch-timeout
+    fetch-timeout-ms: 600       # end-to-end timeout applied in WebClient
   search:
-    warmup-ms: 400   # time budget for warm-up orchestration
+    warmup-ms: 800              # max budget for warm-up orchestration
 
 resilience4j:
+  retry:
+    instances:
+      provider:
+        max-attempts: 1         # avoid sequential retries on the read path
+        wait-duration: 0ms
   circuitbreaker:
     instances:
       provider:
         sliding-window-type: COUNT_BASED
         sliding-window-size: 10
         failure-rate-threshold: 50
-        wait-duration-in-open-state: 5s
+        wait-duration-in-open-state: 10s
         permitted-number-of-calls-in-half-open-state: 3
-  retry:
-    instances:
-      provider:
-        max-attempts: 3
-        wait-duration: 300ms
 ```
+
+**Notes**
+- `ProviderProperties` **has no defaults** and is `@Validated`: the app **won’t start** unless `base-url`, `connect-timeout-ms` and `read-timeout-ms` are set.
+- `HttpClientConfig` wires Reactor Netty with the **connect** and **read** timeouts.
+- `WebClientProviderClient` applies `fetch-timeout-ms` as a **hard cap** for each provider call.
 
 ---
 
 ## API
 
 ### `GET /search`
+Returns plans that **overlap** the provided time window and that were **ever available with `sell_mode = "online"`**.  
+Reads are **always served from the local DB** (independent of provider health).
+
 **Query params**
-- `starts_at` — ISO‑8601 instant (UTC), e.g. `2021-06-30T20:00:00Z`
-- `ends_at` — ISO‑8601 instant (UTC), e.g. `2021-06-30T23:00:00Z`
+- `starts_at` — ISO-8601 instant (UTC), e.g. `2021-06-30T20:00:00Z`
+- `ends_at` — ISO-8601 instant (UTC), e.g. `2021-06-30T23:00:00Z`
 
 **Curl**
 ```bash
 curl -s 'http://localhost:8080/search?starts_at=2021-06-30T20:00:00Z&ends_at=2021-06-30T23:00:00Z'
 ```
 
-**Success (200)**
-```json
-{
-  "data": {
-    "events": [
-      {
-        "id": "291",
-        "title": "Camela en concierto",
-        "start_date": "2021-06-30",
-        "start_time": "21:00",
-        "end_date": "2021-06-30",
-        "end_time": "22:00",
-        "min_price": 15.0,
-        "max_price": 30.0
-      }
-    ]
-  },
-  "error": null
-}
-```
+**Responses**
+- **200** – results in `data.events`
+- **404** – empty result set
+- **400** – bad/missing params
+- **500** – unexpected error
 
-**Errors**
-```json
-// 400 Bad Request
-{ "data": null, "error": { "code": "400", "message": "The request was not correctly formed (missing required parameters, wrong types...)" } }
-
-// 404 Not Found
-{ "data": null, "error": { "code": "404", "message": "No plans were found for the specified time window." } }
-
-// 500 Internal Server Error
-{ "data": null, "error": { "code": "500", "message": "An unexpected error occurred." } }
-```
-
-**Contract notes**
-- On success, `data.events` contains the list. On error, `data` is `null` and `error` includes `{code, message}`.
+Contract is documented in Swagger/OpenAPI.
 
 ---
 
-## Architecture
+## Design highlights
 
-**Layers / packages**
-- `domain.*` — entities and business services (pure Java, framework‑free).
-- `application.*` — use cases/orchestration (`SearchPlansUseCase`, `RefreshPlansUseCase`, `SearchWithWarmupUseCase`).
-- `adapters.in.rest.*` — controllers, DTOs, mappers, and global exception advice.
-- `adapters.out.persistence.*` — JPA repository adapter and mappers.
-- `adapters.out.provider.*` — provider client (WebClient) + DTOs + mappers.
-- `config.*` — configuration beans (HTTP client, OpenAPI, etc.).
+- **DB-first reads**  
+  `/search` never calls the provider on the request path → stable latency independent of external services.
 
-**Ports & Adapters**
-- `PlanRepositoryPort` (domain) ⇄ `PlanRepositoryAdapter` (out/persistence).
-- `ProviderClientPort` (domain) ⇄ `WebClientProviderClient` (out/provider).
+- **Warm-up orchestration (SWR)**  
+  Implemented in `SearchWithWarmupUseCaseImpl`:
+    - **Cold start (DB empty):** do a **blocking refresh** bounded by `fever.search.warmup-ms`, then read from DB.
+    - **Warm path (DB has data):** read **immediately** from DB and trigger a **non-blocking** refresh (stale-while-revalidate) within the same budget.
 
-**Resilience**
-- Provider client guarded by **Resilience4j**: `@CircuitBreaker` + `@Retry` with a fallback returning an empty list.
-- Timeouts at HTTP client level.
+- **Resilience**  
+  Provider client uses **Resilience4j** (`@CircuitBreaker`, `@Retry`) and strict timeouts. Fallback returns **empty** list so the search endpoint remains unaffected.
 
-**Warm-up**
-- Search endpoint always answers from DB.
-- When needed, orchestration can trigger a refresh with a budget `fever.search.warmup-ms` (non-blocking or short-blocking).
+- **Clean boundaries**  
+  Domain is framework-free. Ports: `PlanRepositoryPort`, `ProviderClientPort`. Adapters: JPA & WebClient. Mappers via **MapStruct**.
 
 ---
 
 ## Persistence
 
-**Entity**
-- `plans` table stores provider plans and keeps historical data.
-- Fields: provider_id, title, sell_mode, starts_at, ends_at, min_price, max_price, first_seen_at, last_seen_at, currently_available.
-
-**Indexes**
-- `(starts_at, ends_at)`
-- `(sell_mode)`
-- Optional composite `(sell_mode, starts_at, ends_at)` to speed overlap queries.
-
-**Migrations**
-- Managed by **Flyway** in `src/main/resources/db/migration`.
-
----
-
-## Project structure (excerpt)
-
-```
-src/main/java/com/fever/challenge/plans
-├─ adapters
-│  ├─ in
-│  │  └─ rest
-│  │     ├─ PlanController.java
-│  │     ├─ dto/ (EventDto, SearchResponseDto)
-│  │     ├─ mapper/ (EventDtoMapper)
-│  │     └─ advice/ (RestApiExceptionHandler)
-│  └─ out
-│     ├─ persistence
-│     │  ├─ entity/ (PlanEntity)
-│     │  ├─ repo/ (PlanRepository)
-│     │  └─ adapter/ (PlanRepositoryAdapter)
-│     └─ provider
-│        ├─ WebClientProviderClient.java
-│        ├─ dto/ (ProviderEventDto, ProviderResponseDto)
-│        └─ mapper/ (ProviderEventMapper)
-├─ application
-│  ├─ search/ (SearchPlansUseCase, impl)
-│  ├─ refresh/ (RefreshPlansUseCase, impl)
-│  └─ orchestration/ (SearchWithWarmupUseCase, impl)
-├─ domain
-│  ├─ model/ (Plan, ErrorCode, ErrorDescription)
-│  ├─ port/ (PlanRepositoryPort, ProviderClientPort)
-│  └─ service/ (PlanService)
-└─ config (HttpClientConfig, OpenApiConfig, DomainConfig)
-```
+- **Entity / Table:** `plans`
+    - `provider_id` (unique), `title`, `sell_mode`
+    - `starts_at`, `ends_at` (UTC)
+    - `min_price`, `max_price`
+    - `first_seen_at`, `last_seen_at` (history)
+    - `currently_available` (future use; not used to filter `/search`)
+- **Indexes**
+    - `(starts_at, ends_at)`
+    - `(sell_mode)`
+    - `(sell_mode, starts_at, ends_at)` (composite for overlap scans)
+- **Migrations:** Flyway under `db/migration`.
 
 ---
 
-## Makefile targets
+## Mapping
 
-| Target | Use |
-|---|---|
-| `make db` | Start local PostgreSQL |
-| `make run` | Run Spring Boot app |
-| `make test` | Run tests |
-| `make stop` | Stop PostgreSQL |
-| `make clean` | Maven clean |
+- **Provider (XML → domain):** `WebClientProviderClient` + DTOs → `ProviderPlanMapper` (aggregates `min_price`/`max_price` from zones).
+- **Persistence:** `PlanPersistenceMapper` (`Plan` ⇄ `PlanEntity`).
+- **REST:** `EventDtoMapper` (snake_case dates/times as strings per spec).
 
 ---
 
 ## Testing
 
-- **Unit**: services and mappers.
-- **Integration**: controller (MockMvc), repository (H2), provider client (mocked WebClient).
+- **Unit:** domain services and mappers.
+- **Integration:** controller (MockMvc), repository (H2/Postgres), provider client (real/mocked as needed).
 ```bash
 make test
 ```
 
 ---
 
-## Notes & decisions
+## Makefile (main targets)
 
-- Provider mapping isolated in **out/provider** with DTOs and MapStruct mapper.
-- Domain remains framework‑free.
-- Global exception handler in **in/rest/advice** maps exceptions → API error contract.
-- Consistent naming: avoid `Impl` in adapters (use `*Adapter`, `*Client`).
+| Target | Use |
+|---|---|
+| `make db`   | Start local PostgreSQL |
+| `make run`  | Run Spring Boot app |
+| `make test` | Run tests |
+| `make stop` | Stop PostgreSQL |
+| `make clean`| Maven clean |
 
 ---
-
-## License
-
-MIT – use freely for evaluation and improvement.

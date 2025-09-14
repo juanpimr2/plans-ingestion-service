@@ -3,6 +3,9 @@ package com.fever.challenge.plans.adapters.in.rest.advice;
 import com.fever.challenge.plans.adapters.in.rest.dto.SearchResponseDto;
 import com.fever.challenge.plans.domain.model.ErrorCode;
 import com.fever.challenge.plans.domain.model.ErrorDescription;
+import jakarta.validation.ConstraintViolationException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
@@ -13,17 +16,25 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
-import jakarta.validation.ConstraintViolationException;
+import java.util.Objects;
 
 /**
- * Mapea excepciones a la respuesta estándar { data: null, error: { code, message } }.
- * Capa: adapter de entrada (REST).
+ * Maps exceptions to the standard API error envelope:
+ * <pre>{ "data": null, "error": { "code": "...", "message": "..." } }</pre>
+ *
+ * <p>Layer: inbound adapter (REST). The goal is to return clean client-facing errors
+ * without leaking internals. Logging is intentionally minimal.</p>
  */
 @Order(Ordered.HIGHEST_PRECEDENCE)
 @RestControllerAdvice
 public class ApiExceptionHandler {
 
-    // 400 - petición inválida (parámetros faltantes o con tipo incorrecto)
+    private static final Logger log = LoggerFactory.getLogger(ApiExceptionHandler.class);
+
+    /**
+     * Handles common client-side errors as HTTP 400.
+     * Keeps logs concise and human: type + short message.
+     */
     @ExceptionHandler({
             IllegalArgumentException.class,
             MissingServletRequestParameterException.class,
@@ -32,14 +43,26 @@ public class ApiExceptionHandler {
             MethodArgumentNotValidException.class
     })
     public ResponseEntity<SearchResponseDto> handleBadRequest(Exception ex) {
+        log.warn("400 Bad Request: {} - {}", ex.getClass().getSimpleName(), safeMessage(ex));
         return ResponseEntity.badRequest()
                 .body(SearchResponseDto.error(ErrorCode.BAD_REQUEST, ErrorDescription.BAD_REQUEST));
     }
 
-    // 500 - error genérico no controlado
+    /**
+     * Catches everything else as HTTP 500.
+     * We log the stack trace once here; the response remains generic.
+     */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<SearchResponseDto> handleGeneric(Exception ex) {
+        log.error("500 Internal Server Error", ex);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(SearchResponseDto.error(ErrorCode.INTERNAL_ERROR, ErrorDescription.INTERNAL_ERROR));
+    }
+
+    // Returns a short, safe message for logs (avoids nulls and overly long payloads).
+    private String safeMessage(Exception ex) {
+        String message = ex.getMessage();
+        if (Objects.isNull(message)) return "(no message)";
+        return message.length() > 200 ? message.substring(0, 200) + "…" : message;
     }
 }

@@ -48,14 +48,12 @@ public class SearchResponseDto {
         private String message;
     }
 
-    /** Respuesta de éxito. */
     public static SearchResponseDto ok(List<EventDto> events) {
         return SearchResponseDto.builder()
                 .data(Data.builder().events(events).build())
                 .build();
     }
 
-    /** Respuesta de error. */
     public static SearchResponseDto error(ErrorCode code, ErrorDescription description) {
         return SearchResponseDto.builder()
                 .error(Error.builder()

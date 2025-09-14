@@ -24,17 +24,35 @@ public class SearchWithWarmupUseCaseImpl implements SearchWithWarmupUseCase {
         this.refresh = refresh;
     }
 
-    @Override
+    /**
+     * Executes a bounded search for {@link Plan} between the given instants.
+     *
+     * <p><strong>Implementation notes</strong>:</p>
+     * <ul>
+     *   <li><em>Fast path</em>: If cached data is available, return results immediately and kick a background refresh (stale-while-revalidate).</li>
+     *   <li><em>Cold start</em>: If there’s no data yet, run a short blocking warm-up (within the given budget) before answering.</li>
+     * </ul>
+     *
+     * @param startsAt     inclusive lower bound of the search window (UTC)
+     * @param endsAt       exclusive upper bound of the search window (UTC)
+     * @param warmupBudget max duration allowed for warm-up/refresh operations
+     * @return plans within the time window (possibly empty, never {@code null})
+     */
     public List<Plan> execute(Instant startsAt, Instant endsAt, Duration warmupBudget) {
-        // Cold start: try a short blocking refresh with a strict time budget.
+        // Fast path: cached data ⇒ return now, refresh in background.
+        // Cold start: no data ⇒ warm up briefly, then answer.
+
         if (!refresh.hasAny()) {
-            log.info("No cached plans in DB. Running blocking warm-up (budget={})...", warmupBudget);
+            log.info("No cached plans. Running a short blocking warm-up (budget={}).", warmupBudget);
             refresh.refreshBlocking(warmupBudget);
             return search.findWithin(startsAt, endsAt);
         }
 
         List<Plan> result = search.findWithin(startsAt, endsAt);
+        log.info("Returning {} plans. Background refresh started.", result.size());
         refresh.refreshNonBlocking(warmupBudget);
         return result;
     }
+
+
 }
