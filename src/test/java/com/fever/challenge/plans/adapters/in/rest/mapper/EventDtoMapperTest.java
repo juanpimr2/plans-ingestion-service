@@ -29,8 +29,8 @@ class EventDtoMapperTest {
 
         EventDto dto = mapper.toDto(plan);
         assertThat(dto.getId()).isEqualTo("1");
-        assertThat(dto.getStart_date()).isEqualTo("2021-06-30");
-        assertThat(dto.getStart_time()).isEqualTo("21:00");
-        assertThat(dto.getMax_price()).isEqualTo(20.0);
+        assertThat(dto.getStartDate()).isEqualTo("2021-06-30");
+        assertThat(dto.getStartTime()).isEqualTo("21:00");
+        assertThat(dto.getMaxPrice()).isEqualTo(20.0);
     }
 }

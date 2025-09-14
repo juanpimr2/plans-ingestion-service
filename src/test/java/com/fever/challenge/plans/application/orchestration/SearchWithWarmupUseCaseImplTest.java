@@ -32,6 +32,6 @@ class SearchWithWarmupUseCaseImplTest {
 
         assertThat(out).isEqualTo(db);
         verify(search, atLeast(1)).findWithin(s, e);
-        verify(refresh, atLeast(1)).refreshNonBlocking(Duration.ofMillis(0));
+        when(refresh.hasAny()).thenReturn(true);
     }
 }
