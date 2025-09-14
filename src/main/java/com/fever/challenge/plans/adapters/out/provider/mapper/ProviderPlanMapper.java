@@ -58,7 +58,7 @@ public interface ProviderPlanMapper {
         return Optional.ofNullable(zones)
                 .stream()
                 .flatMap(List::stream)
-                .map(z -> z.price)              // suele venir como String "20.00"
+                .map(providerZone -> providerZone.price)
                 .filter(Objects::nonNull)
                 .map(Double::valueOf)
                 .min(Comparator.naturalOrder());
@@ -68,7 +68,7 @@ public interface ProviderPlanMapper {
         return Optional.ofNullable(zones)
                 .stream()
                 .flatMap(List::stream)
-                .map(z -> z.price)
+                .map(providerZone -> providerZone.price)
                 .filter(Objects::nonNull)
                 .map(Double::valueOf)
                 .max(Comparator.naturalOrder());

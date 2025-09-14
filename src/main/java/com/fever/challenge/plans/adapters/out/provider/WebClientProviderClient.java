@@ -26,6 +26,7 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class WebClientProviderClient implements ProviderClientPort {
 
+    public static final String ONLINE = "online";
     @Value("${fever.provider.fetch-timeout-ms:3000}")
     private long fetchTimeoutMs;
 
@@ -50,15 +51,14 @@ public class WebClientProviderClient implements ProviderClientPort {
                 .bodyToMono(String.class)
                 .timeout(callTimeout)
                 .onErrorResume(ex -> {
-                    log.error("HTTP call to provider failed (timeout={}s): {}", callTimeout.toSeconds(),
+                    log.error("HTTP call to provider failed (timeout={}s): {}", callTimeout.toMillis(),
                             ex.getMessage());
                     return Mono.error(ex);
                 })
                 .block();
 
-        log.info("GOOOOOOOOO xml: {}", xml);
 
-        if (xml == null || xml.isBlank()) {
+        if (Objects.isNull(xml) || xml.isBlank()) {
             log.warn("Provider returned empty body.");
             return List.of();
         }
@@ -79,8 +79,8 @@ public class WebClientProviderClient implements ProviderClientPort {
 
         List<Plan> plans = basePlans.stream()
                 .filter(Objects::nonNull)
-                .filter(bp -> "online".equalsIgnoreCase(bp.sellMode))
-                .filter(bp -> bp.plan != null)
+                .filter(basePlan -> ONLINE.equalsIgnoreCase(basePlan.sellMode))
+                .filter(basePlan -> Objects.nonNull(basePlan.plan))
                 .map(mapper::toDomain)
                 .toList();
 
