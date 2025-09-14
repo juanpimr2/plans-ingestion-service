@@ -56,6 +56,8 @@ public class WebClientProviderClient implements ProviderClientPort {
                 })
                 .block();
 
+        log.info("GOOOOOOOOO xml: {}", xml);
+
         if (xml == null || xml.isBlank()) {
             log.warn("Provider returned empty body.");
             return List.of();

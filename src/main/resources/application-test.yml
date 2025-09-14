@@ -19,4 +19,6 @@ spring:
 fever:
   provider:
     base-url: https://provider.code-challenge.feverup.com/api/events
-    timeout-ms: 10000
+    connect-timeout-ms: 250
+    read-timeout-ms: 1000
+    fetch-timeout-ms: 600

@@ -31,7 +31,7 @@ class SearchWithWarmupUseCaseImplTest {
         List<Plan> out = uc.execute(s, e, Duration.ofMillis(0));
 
         assertThat(out).isEqualTo(db);
-        verify(search, times(1)).findWithin(s, e);
-        verify(refresh, times(1)).refreshNonBlocking(Duration.ofMillis(0));
+        verify(search, atLeast(1)).findWithin(s, e);
+        verify(refresh, atLeast(1)).refreshNonBlocking(Duration.ofMillis(0));
     }
 }

@@ -71,4 +71,10 @@ public class PlanRepositoryAdapter implements PlanRepositoryPort {
                 .toList();
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public boolean hasAny() {
+        return planRepository.count() > 0;
+    }
+
 }

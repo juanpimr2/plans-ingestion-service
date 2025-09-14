@@ -19,17 +19,24 @@ spring:
 fever:
   provider:
     base-url: https://provider.code-challenge.feverup.com/api/events
-    connect-timeout-ms: 6000
-    read-timeout-ms: 6000
-    fetch-timeout-ms: 6000
-  search:
-    warmup-ms: 5000
-springdoc:
-  swagger-ui:
-    disable-swagger-default-url: true
+    # Conexión agresiva: si la red está mal, cortamos rápido
+    connect-timeout-ms: 250
+    # Límite duro del socket; dejarlo > fetch-timeout-ms para que mande el timeout de negocio
+    read-timeout-ms: 1000
+    # Timeout end-to-end de la llamada al provider (lo usa WebClientProviderClient)
+    fetch-timeout-ms: 600
 
+  search:
+    # Presupuesto total de warm-up (bloqueante si DB vacía; no-bloqueante si ya hay datos)
+    warmup-ms: 800
 
 resilience4j:
+  retry:
+    instances:
+      provider:
+        # Para no romper el presupuesto de 800 ms en frío
+        max-attempts: 1
+        wait-duration: 0ms
   circuitbreaker:
     instances:
       provider:
@@ -38,8 +45,3 @@ resilience4j:
         failure-rate-threshold: 50
         wait-duration-in-open-state: 10s
         permitted-number-of-calls-in-half-open-state: 3
-  retry:
-    instances:
-      provider:
-        max-attempts: 3
-        wait-duration: 300ms

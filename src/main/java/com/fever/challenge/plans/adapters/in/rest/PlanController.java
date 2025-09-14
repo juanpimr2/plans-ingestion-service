@@ -91,7 +91,6 @@ public class PlanController {
             Instant endsAt
     ) {
 
-        log.info("warmupMs : " + warmupMs);
         // Validación mínima: provoca 400 a través del handler
         if (startsAt.compareTo(endsAt) >= 0) {
             throw new IllegalArgumentException("starts_at must be before ends_at");

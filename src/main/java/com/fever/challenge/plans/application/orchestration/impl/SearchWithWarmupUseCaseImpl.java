@@ -26,11 +26,15 @@ public class SearchWithWarmupUseCaseImpl implements SearchWithWarmupUseCase {
 
     @Override
     public List<Plan> execute(Instant startsAt, Instant endsAt, Duration warmupBudget) {
-        // 1) Buscar en DB
-        List<Plan> db = search.findWithin(startsAt, endsAt);
-        // 2) Disparar warmup en background (no necesita resultados de search)
+        // Cold start: try a short blocking refresh with a strict time budget.
+        if (!refresh.hasAny()) {
+            log.info("No cached plans in DB. Running blocking warm-up (budget={})...", warmupBudget);
+            refresh.refreshBlocking(warmupBudget);
+            return search.findWithin(startsAt, endsAt);
+        }
+
+        List<Plan> result = search.findWithin(startsAt, endsAt);
         refresh.refreshNonBlocking(warmupBudget);
-        // 3) Devolver lo que haya en DB (rápido, sin bloquear demasiado)
-        return db;
+        return result;
     }
 }
